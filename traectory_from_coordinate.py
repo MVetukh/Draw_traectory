@@ -1,43 +1,63 @@
 import cv2
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-# Читаем данные акселерометра
-accelerometer_data = pd.read_csv('./датчики/Accelerometer.csv')
-# Простое масштабирование координат X и Y
-x_points = np.array(accelerometer_data['x']) * 100
-y_points = np.array(accelerometer_data['y']) * 100
+# Функция для добавления отрисовки траектории XY из файла
+def add_xy_trajectory(trajectory_plot, ax, ay, frame_number):
+    scale = 10  # масштаб для усиления величин движения
+    origin = (100, 100)  # начальная точка
 
-# Открываем видео
-cap = cv2.VideoCapture('.\TestTaskVslamAndOdometry\Траектория-_1-2024-03-27_13-11-09.zip')
-frame_count = 0
+    if frame_number == 0:
+        trajectory_plot[origin[1], origin[0]] = (0,0,255)
+    else:
+        new_point = (int(origin[0] + ax * scale), int(origin[1] + ay * scale))
+        cv2.line(trajectory_plot, origin, new_point, (0, 255, 0), 2)
+        origin = new_point
+    return trajectory_plot
 
-# Создаём фон для отрисовки траектории
-# Предполагаем, что размеры кадра 640x480
-trajectory_background = np.zeros((480, 640, 3), dtype=np.uint8)
+def draw_trajectory_with_csv(video_path, csv_path):
+    # Считывание данных из файла
+    data = pd.read_csv(csv_path)
+    ax = data['x'].values
+    ay = data['y'].values
 
-while cap.isOpened():
+    cap = cv2.VideoCapture(video_path)    
     ret, frame = cap.read()
     if not ret:
-        break
+        print("Не удалось считать видео")
+        return
 
-    # Проверяем, есть ли у нас координаты для этого фрейма
-    if frame_count < len(x_points):
-        x = int(x_points[frame_count])
-        y = int(y_points[frame_count])
-        
-        # Рисуем точку на фоне
-        cv2.circle(trajectory_background, (200 + x, 200 + y), 5, (0, 255, 0), -1)
-    
-    # Наложим фон с траекторией на текущий кадр
-    frame_with_trajectory = cv2.add(frame, trajectory_background)
+    scale_percent = 50  # процент от оригинала
+    width = int(frame.shape[1] * scale_percent / 100)
+    height = int(frame.shape[0] * scale_percent / 100)
+    dim = (width, height)
 
-    cv2.imshow('Frame with Trajectory', frame_with_trajectory)
-    
-    if cv2.waitKey(25) & 0xFF == ord('q'):  # Скорость воспроизведения и выход
-        break
-    
-    frame_count += 1
+    prev_frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
+    trajectory = np.zeros_like(prev_frame)
+    trajectory_plot = np.zeros_like(prev_frame)  # Для отрисовки XY траектории
 
-cap.release()
-cv2.destroyAllWindows()
+    frame_number = 0
+
+    while cap.isOpened():
+        if frame_number < len(ax):
+            trajectory_plot = add_xy_trajectory(trajectory_plot, ax[frame_number], ay[frame_number], frame_number)
+            frame_number += 1
+            
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
+        output = cv2.add(frame, trajectory_plot)
+
+        cv2.imshow('Trajectory', output)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+video_path = './Draw_traectory/TestTaskVslamAndOdometry/20240327_161347_448.mp4'
+accelerometer_path = '.\Draw_traectory\датчики\Accelerometer.csv'
+draw_trajectory_with_csv(video_path, accelerometer_path)

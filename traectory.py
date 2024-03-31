@@ -42,9 +42,14 @@ def draw_trajectory(video_path):
     if not ret:
         print("Не удалось считать видео")
         return
+    # Уменьшение размера кадра
+    scale_percent = 50  # Процент от исходного размера
+    width = int(prev_frame.shape[1] * scale_percent / 100)
+    height = int(prev_frame.shape[0] * scale_percent / 100)
+    dim = (width, height)
+
+    prev_frame = cv2.resize(prev_frame, dim, interpolation=cv2.INTER_AREA)
     prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
-    
-    # Траектория
     trajectory = np.zeros_like(prev_frame)
     
     while cap.isOpened():
@@ -52,29 +57,26 @@ def draw_trajectory(video_path):
         if not ret:
             break
         
+        frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
         # Оптический поток
         flow = cv2.calcOpticalFlowFarneback(prev_gray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
         
-        # Получение среднего вектора движения
         magnitude, angle = cv2.cartToPolar(flow[:,:, 0], flow[:,:, 1])
         mean_mag = np.mean(magnitude)
         
-        # Предполагая начальное положение в центре кадра
         if 'trajectory_point' not in locals():
             trajectory_point = (frame.shape[1]//2, frame.shape[0]//2)
         
         dx, dy = int(mean_mag * np.cos(np.mean(angle))), int(mean_mag * np.sin(np.mean(angle)))
         trajectory_point = (trajectory_point[0] + dx, trajectory_point[1] + dy)
-        
-        # Рисование траектории
+    
         cv2.circle(trajectory, trajectory_point, 5, (0, 0, 255), -1)
-        
-        # Визуализация
         output = cv2.add(frame, trajectory)
+    
         cv2.imshow('Trajectory', output)
-        if cv2.waitKey(25) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
         
         prev_gray = gray
@@ -83,12 +85,10 @@ def draw_trajectory(video_path):
     cv2.destroyAllWindows()
 
 
-
-
 if __name__ == "__main__":
     
-    video_path = './TestTaskVslamAndOdometry/20240327_161347_448.mp4'
-    output_dir = './TestTaskVslamAndOdometry/frames'
+    video_path = './Draw_traectory/TestTaskVslamAndOdometry/20240327_161347_448.mp4'
+    #output_dir = './TestTaskVslamAndOdometry/Draw_traectory/frames'
    # extract_frames(video_path, output_dir, skip_frames=10)
 
     draw_trajectory(video_path)
